@@ -28,10 +28,27 @@ function sourcesToBreachTags(sources: LeakCheckSource[]): string[] {
     .slice(0, 20);
 }
 
+function simulateMobileThreats(mobile: string, deepScan: boolean): string[] {
+  if (!mobile || mobile.length < 10) return [];
+  if (!deepScan) return [];
+  const seed = mobile.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  if (seed % 3 === 0) return ["Financial Spam List"];
+  if (seed % 5 === 0) return ["Telemarketer Database", "Financial Spam List"];
+  return [];
+}
+
+function simulateAadhaarThreats(aadhaarPan: string): string[] {
+  if (!aadhaarPan || aadhaarPan.length < 4) return [];
+  return [];
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const email = typeof body?.email === "string" ? body.email.trim() : "";
+    const mobile = typeof body?.mobile === "string" ? body.mobile.trim().replace(/\D/g, "") : "";
+    const aadhaarPan = typeof body?.aadhaarPan === "string" ? body.aadhaarPan.trim() : "";
+    const deepScan = Boolean(body?.deepIdentityScan);
     if (!email) {
       return NextResponse.json(
         { error: "Email is required" },
@@ -56,13 +73,21 @@ export async function POST(request: NextRequest) {
     const data = (await res.json()) as LeakCheckResponse;
     const found = typeof data.found === "number" ? data.found : 0;
     const sources = data.sources ?? [];
-    const score = scoreFromLeakCount(found);
-    const breachTags = sourcesToBreachTags(sources);
+    const emailBreachTags = sourcesToBreachTags(sources);
+    const mobileThreats = simulateMobileThreats(mobile, deepScan);
+    const aadhaarThreats = simulateAadhaarThreats(aadhaarPan);
+
+    const emailPenalty = found === 0 ? 0 : found <= 3 ? 35 : 60;
+    const mobilePenalty = mobileThreats.length * 25;
+    const aadhaarPenalty = aadhaarThreats.length * 30;
+    const score = Math.max(0, Math.min(100, 100 - emailPenalty - mobilePenalty - aadhaarPenalty));
 
     return NextResponse.json({
       score,
-      breachTags,
+      breachTags: emailBreachTags,
       found,
+      mobileThreats,
+      aadhaarThreats,
     });
   } catch (e) {
     console.error("Audit API error:", e);
