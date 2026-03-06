@@ -96,6 +96,22 @@ function saveAudits(audits: AuditEntry[]) {
   }
 }
 
+const formatNameFromEmail = (email: string): string => {
+  const local = (email || "").split("@")[0] || "";
+  const withSpaces = local.replace(/[._]/g, " ").trim();
+  if (!withSpaces) return "[Your Name]";
+  return withSpaces
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+};
+
+const getDeletionNoticeBody = (auditedEmail: string): string => {
+  const name = auditedEmail ? formatNameFromEmail(auditedEmail) : "[Your Name]";
+  const registeredEmail = auditedEmail || "[Your Email]";
+  return `To the Data Protection Officer,\n\nUnder the provisions of the Digital Personal Data Protection Act, 2023, I hereby request the immediate erasure of all my personal data held by your organization.\n\nPlease confirm once the deletion is complete.\n\nRegards,\n${name}\nRegistered Email: ${registeredEmail}`;
+};
+
 type TabId = "audit" | "vault";
 
 export default function Home() {
@@ -109,6 +125,7 @@ export default function Home() {
   const [showFindings, setShowFindings] = useState(false);
   const [auditError, setAuditError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [draftNoticeOpenForId, setDraftNoticeOpenForId] = useState<string | null>(null);
 
   const rcmScore = useMemo(() => proactiveScore(connectedAccounts), [connectedAccounts]);
   const score = rcmScore;
@@ -184,25 +201,27 @@ export default function Home() {
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
   };
 
-  const DPDP_DELETION_BODY =
-    "To the Data Protection Officer,\n\nUnder the provisions of the Digital Personal Data Protection Act, 2023, I hereby request the immediate erasure of all my personal data held by your organization.\n\nPlease confirm once the deletion is complete.\n\nRegards,";
-
-  const buildDeletionMailto = (companyName: string) => {
-    const slug = companyName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "")
-      .replace(/^$/, "company");
-    const subject = "Urgent: Data Deletion Request under DPDP Act 2023";
-    return `mailto:privacy@${slug}.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(DPDP_DELETION_BODY)}`;
+  const handleDeletionRequest = (companyName: string) => {
+    const recipientEmail = `privacy@${companyName.toLowerCase().replace(/\s+/g, "")}.com`;
+    const subject = encodeURIComponent("Urgent: Data Deletion Request under DPDP Act 2023");
+    const body = encodeURIComponent(getDeletionNoticeBody(email.trim()));
+    window.location.href = `mailto:${recipientEmail}?subject=${subject}&body=${body}`;
   };
 
   const copyDeletionNotice = async (id: string) => {
     try {
-      await navigator.clipboard.writeText(DPDP_DELETION_BODY);
+      await navigator.clipboard.writeText(getDeletionNoticeBody(email.trim()));
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
     } catch {
       setCopiedId(null);
+    }
+  };
+
+  const handleCopyAndCloseModal = async () => {
+    if (draftNoticeOpenForId) {
+      await copyDeletionNotice(draftNoticeOpenForId);
+      setDraftNoticeOpenForId(null);
     }
   };
 
@@ -353,19 +372,19 @@ export default function Home() {
                                 </div>
                                 {acc.consentStatus === "Active" ? (
                                   <div className="shrink-0 flex items-center gap-1.5">
-                                    {/* Native <a> with mailto: only — no Link, no onClick, no preventDefault */}
-                                    <a
-                                      href={buildDeletionMailto(acc.name)}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeletionRequest(acc.name)}
                                       className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-500/50 bg-red-500/15 text-red-300 hover:bg-red-500/25 hover:border-red-400/60 transition-colors cursor-pointer"
                                     >
                                       Request Deletion
-                                    </a>
+                                    </button>
                                     <span className="relative inline-flex">
                                       <button
                                         type="button"
-                                        onClick={() => copyDeletionNotice(acc.id)}
+                                        onClick={() => setDraftNoticeOpenForId(acc.id)}
                                         className="p-1.5 rounded-md border border-[rgba(192,192,192,0.25)] bg-white/5 text-[#C0C0C0] hover:bg-white/10 hover:border-[rgba(192,192,192,0.4)] transition-colors"
-                                        aria-label="Copy legal notice to clipboard"
+                                        aria-label="Open draft legal notice"
                                       >
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -553,6 +572,81 @@ export default function Home() {
           </a>
         </p>
       </footer>
+
+      {/* Draft Legal Notice Modal */}
+      <AnimatePresence>
+        {draftNoticeOpenForId && (
+          <>
+            <motion.div
+              className="fixed inset-0 z-50 bg-black/70"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setDraftNoticeOpenForId(null)}
+              aria-hidden
+            />
+            <motion.div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <motion.div
+                className="pointer-events-auto w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
+                style={{
+                  background: "rgba(15, 10, 24, 0.98)",
+                  border: "1px solid rgba(75, 0, 130, 0.5)",
+                  boxShadow: "0 0 0 1px rgba(192,192,192,0.1), 0 25px 50px -12px rgba(0,0,0,0.5)",
+                }}
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-6 pt-6 pb-4">
+                  <h3 className="text-lg font-semibold mb-4" style={{ color: ROYAL_PURPLE }}>
+                    Draft Legal Notice
+                  </h3>
+                  <p className="text-xs mb-3 opacity-90" style={{ color: SILVER }}>
+                    Review the text below. Copy it to paste into your email client if mailto is unavailable.
+                  </p>
+                  <pre
+                    className="w-full p-4 rounded-xl text-sm font-mono whitespace-pre-wrap break-words overflow-x-auto max-h-[240px] overflow-y-auto border"
+                    style={{
+                      background: "rgba(0, 0, 0, 0.4)",
+                      color: "#c0c0c0",
+                      borderColor: "rgba(75, 0, 130, 0.35)",
+                    }}
+                  >
+                    {getDeletionNoticeBody(email.trim())}
+                  </pre>
+                </div>
+                <div className="px-6 pb-6 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleCopyAndCloseModal}
+                    className="w-full py-3.5 rounded-xl font-semibold text-white transition-all hover:opacity-95 active:scale-[0.99]"
+                    style={{ background: ROYAL_PURPLE }}
+                  >
+                    Copy to Clipboard & Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDraftNoticeOpenForId(null)}
+                    className="w-full mt-3 py-2.5 rounded-xl font-medium border transition hover:bg-white/5"
+                    style={{ borderColor: "rgba(192,192,192,0.3)", color: SILVER }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
