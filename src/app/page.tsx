@@ -108,6 +108,7 @@ export default function Home() {
   const [audits, setAudits] = useState<AuditEntry[]>([]);
   const [showFindings, setShowFindings] = useState(false);
   const [auditError, setAuditError] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const rcmScore = useMemo(() => proactiveScore(connectedAccounts), [connectedAccounts]);
   const score = rcmScore;
@@ -183,20 +184,26 @@ export default function Home() {
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
   };
 
-  const buildDeletionMailto = (companyOrSource: string) => {
+  const DPDP_DELETION_BODY =
+    "To the Data Protection Officer,\n\nUnder the provisions of the Digital Personal Data Protection Act, 2023, I hereby request the immediate erasure of all my personal data held by your organization.\n\nPlease confirm once the deletion is complete.\n\nRegards,";
+
+  const buildDeletionMailto = (companyName: string) => {
+    const slug = companyName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "")
+      .replace(/^$/, "company");
     const subject = "Urgent: Data Deletion Request under DPDP Act 2023";
-    const body = `Dear Data Protection Officer / Grievance Officer,
+    return `mailto:privacy@${slug}.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(DPDP_DELETION_BODY)}`;
+  };
 
-I am writing to exercise my right to erasure under the Digital Personal Data Protection Act, 2023 (DPDP Act 2023).
-
-I have been informed that my personal data may have been exposed in a breach associated with ${companyOrSource}. Under Section 11 and other applicable provisions of the DPDP Act 2023, I hereby demand the immediate erasure of all my personal data from your systems, databases, and any third parties with whom you may have shared it.
-
-Please confirm receipt of this request and complete the deletion within the timeline prescribed under the Act. I reserve my right to approach the Data Protection Board of India in case of non-compliance.
-
-Yours faithfully,
-[Your Name]
-[Contact Details]`;
-    return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const copyDeletionNotice = async (id: string) => {
+    try {
+      await navigator.clipboard.writeText(DPDP_DELETION_BODY);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      setCopiedId(null);
+    }
   };
 
   return (
@@ -345,12 +352,36 @@ Yours faithfully,
                                   </span>
                                 </div>
                                 {acc.consentStatus === "Active" ? (
-                                  <a
-                                    href={buildDeletionMailto(acc.name)}
-                                    className="shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-500/50 bg-red-500/15 text-red-300 hover:bg-red-500/25 hover:border-red-400/60 transition-colors"
-                                  >
-                                    Request Deletion
-                                  </a>
+                                  <div className="shrink-0 flex items-center gap-1.5">
+                                    {/* Native <a> with mailto: only — no Link, no onClick, no preventDefault */}
+                                    <a
+                                      href={buildDeletionMailto(acc.name)}
+                                      className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-500/50 bg-red-500/15 text-red-300 hover:bg-red-500/25 hover:border-red-400/60 transition-colors cursor-pointer"
+                                    >
+                                      Request Deletion
+                                    </a>
+                                    <span className="relative inline-flex">
+                                      <button
+                                        type="button"
+                                        onClick={() => copyDeletionNotice(acc.id)}
+                                        className="p-1.5 rounded-md border border-[rgba(192,192,192,0.25)] bg-white/5 text-[#C0C0C0] hover:bg-white/10 hover:border-[rgba(192,192,192,0.4)] transition-colors"
+                                        aria-label="Copy legal notice to clipboard"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                        </svg>
+                                      </button>
+                                      {copiedId === acc.id && (
+                                        <motion.span
+                                          initial={{ opacity: 0, y: 4 }}
+                                          animate={{ opacity: 1, y: 0 }}
+                                          className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] font-medium rounded bg-emerald-600 text-white whitespace-nowrap shadow-lg z-10"
+                                        >
+                                          Copied!
+                                        </motion.span>
+                                      )}
+                                    </span>
+                                  </div>
                                 ) : (
                                   <span className="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium text-emerald-400/95">
                                     <span className="text-emerald-400">Threat Neutralized: Consent Withdrawn</span>
