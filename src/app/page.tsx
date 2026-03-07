@@ -284,7 +284,7 @@ export type AuditEntry = {
 
 const REPORT_FILTERS: ReportCategory[] = ["Primary Email", "Primary Mobile", "Alternate Emails", "Alternate Mobiles", "Govt IDs"];
 
-/** Hardcoded mock reports: exact structure for Reports tab filters and Threat Dossier. */
+/** Hardcoded mock reports: exact structure for Reports tab filters and Threat Dossier. Categories are unique. */
 const SEED_AUDIT_REPORTS: AuditEntry[] = [
   {
     id: "rep-email",
@@ -296,7 +296,7 @@ const SEED_AUDIT_REPORTS: AuditEntry[] = [
     threatsFound: 14,
     foundThreats: [
       { source: "LinkedIn (2012-05)", compromisedData: ["Primary Email", "Passwords", "Job History"] },
-      { source: "Canva (2019-05)", compromisedData: ["Primary Email", "Passwords", "Location"] },
+      { source: "Canva (2019-05)", compromisedData: ["Primary Email", "Passwords"] },
     ],
   },
   {
@@ -304,11 +304,11 @@ const SEED_AUDIT_REPORTS: AuditEntry[] = [
     category: "Primary Mobile",
     date: "Mar 07, 2026",
     dateTime: "2026-03-07T00:00:00.000Z",
-    email: "",
+    email: "user@company.com",
     score: 85,
     threatsFound: 2,
     foundThreats: [
-      { source: "Telecom Provider Leak", compromisedData: ["Primary Mobile Number", "SMS Logs"] },
+      { source: "Telecom Provider Leak", compromisedData: ["Primary Mobile Number", "SMS Logs", "Location"] },
     ],
   },
 ];
@@ -654,8 +654,10 @@ export default function Home() {
   const revokedCount = useMemo(() => connectedAccounts.filter((a) => a.status === "revoked").length, [connectedAccounts]);
   const breachedAccounts = useMemo(() => connectedAccounts.filter((a) => a.isBreached), [connectedAccounts]);
   const filteredReports = useMemo(() => {
-    if (activeReportFilter === "All") return audits;
-    return audits.filter((e) => e.category === activeReportFilter);
+    return audits.filter((report) => {
+      if (activeReportFilter === "All") return true;
+      return report.category === activeReportFilter;
+    });
   }, [audits, activeReportFilter]);
 
   const categorizedFindings = useMemo(() => {
@@ -1377,50 +1379,6 @@ export default function Home() {
                           Connecting to Secure Servers...
                         </p>
                       )}
-                      {/* Unified Footprint cards — Email, Mobile, Govt ID (single row with status badges) */}
-                      <motion.div
-                        className="grid grid-cols-1 sm:grid-cols-3 gap-5 mt-6"
-                        initial="hidden"
-                        animate="visible"
-                        variants={{ visible: { transition: { staggerChildren: 0.08 } }, hidden: {} }}
-                      >
-                        <motion.div variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }} className="rounded-xl px-4 py-3 border" style={{ background: "rgba(15, 10, 24, 0.85)", borderColor: "rgba(75, 0, 130, 0.35)" }}>
-                          <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: SILVER }}>Email Footprint</p>
-                          <p className="text-lg font-bold tabular-nums mb-1.5" style={{ color: emailScore >= 80 ? "#22c55e" : emailScore >= 50 ? "#eab308" : "#ef4444" }}>{emailScore}/100</p>
-                          <div className="h-1.5 rounded-full overflow-hidden bg-white/10 mb-3">
-                            <motion.div className="h-full rounded-full" style={{ background: emailScore >= 80 ? "#22c55e" : emailScore >= 50 ? "#eab308" : "#ef4444" }} initial={{ width: 0 }} animate={{ width: `${emailScore}%` }} transition={{ type: "spring", damping: 20, stiffness: 120 }} />
-                          </div>
-                          <div className="mt-2"><span className="bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded-full uppercase tracking-wider">Verified & Safe</span></div>
-                        </motion.div>
-                        <motion.div variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }} className="rounded-xl px-4 py-3 border" style={{ background: "rgba(15, 10, 24, 0.85)", borderColor: "rgba(75, 0, 130, 0.35)" }}>
-                          <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: SILVER }}>Mobile Footprint</p>
-                          <p className="text-lg font-bold tabular-nums mb-1.5" style={{ color: mobileScore >= 80 ? "#22c55e" : mobileScore >= 50 ? "#eab308" : "#ef4444" }}>{mobileScore}/100</p>
-                          <div className="h-1.5 rounded-full overflow-hidden bg-white/10 mb-3">
-                            <motion.div className="h-full rounded-full" style={{ background: mobileScore >= 80 ? "#22c55e" : mobileScore >= 50 ? "#eab308" : "#ef4444" }} initial={{ width: 0 }} animate={{ width: `${mobileScore}%` }} transition={{ type: "spring", damping: 20, stiffness: 120 }} />
-                          </div>
-                          <div className="mt-2"><span className="bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded-full uppercase tracking-wider">Verified & Safe</span></div>
-                        </motion.div>
-                        <motion.div variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }} className={`rounded-xl px-4 py-3 border relative ${!hasScannedVault ? "backdrop-blur-sm" : ""}`} style={{ background: "rgba(15, 10, 24, 0.85)", borderColor: "rgba(75, 0, 130, 0.35)" }}>
-                          {!hasScannedVault && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-black/50 z-10 gap-2">
-                              <svg className="w-6 h-6 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
-                              <button type="button" onClick={() => { setUpgradeTarget("premium"); setShowSubscriptionPlanModal(true); }} className="bg-yellow-500/20 text-yellow-400 text-xs px-3 py-1 border border-yellow-500/50 rounded-full uppercase tracking-wider font-semibold hover:bg-yellow-500/30 transition">
-                                Unlock Premium
-                              </button>
-                            </div>
-                          )}
-                          <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: SILVER }}>Govt ID Vault</p>
-                          <p className="text-lg font-bold tabular-nums mb-1.5" style={{ color: vaultScore >= 80 ? "#22c55e" : vaultScore >= 50 ? "#eab308" : "#ef4444" }}>{vaultScore}/100</p>
-                          <div className="h-1.5 rounded-full overflow-hidden bg-white/10">
-                            <motion.div className="h-full rounded-full" style={{ background: vaultScore >= 80 ? "#22c55e" : vaultScore >= 50 ? "#eab308" : "#ef4444" }} initial={{ width: 0 }} animate={{ width: `${vaultScore}%` }} transition={{ type: "spring", damping: 20, stiffness: 120 }} />
-                          </div>
-                          {hasScannedVault && (
-                            <div className="flex justify-center mt-3">
-                              <span className="bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded-full uppercase tracking-wider font-semibold">Verified & Safe</span>
-                            </div>
-                          )}
-                        </motion.div>
-                      </motion.div>
                     </>
                   ) : (
                     <div className="h-48 animate-pulse rounded-xl bg-gray-800" />
@@ -2609,12 +2567,12 @@ export default function Home() {
                         <h4 className="font-bold text-white mb-3">{threat.source}</h4>
                         <div className="flex flex-wrap gap-2">
                           {(threat.compromisedData ?? []).map((item, i) => {
-                            const isCriticalIdentity = item === "Primary Email" || item === "Primary Mobile Number";
+                            const useSolidRedBadge = item === "Primary Email" || item === "Primary Mobile Number";
                             return (
                               <span
                                 key={i}
                                 className={`inline-flex items-center text-[10px] md:text-xs px-2 py-1 rounded font-medium ${
-                                  isCriticalIdentity
+                                  useSolidRedBadge
                                     ? "bg-red-500/25 border border-red-500 text-red-300"
                                     : "bg-transparent border border-dashed border-gray-500 text-gray-400"
                                 }`}
